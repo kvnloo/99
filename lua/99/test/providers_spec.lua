@@ -151,6 +151,33 @@ describe("providers", function()
       )
     end)
 
+    it("normalize_qfix_response deduplicates qfix then matching citation", function()
+      local text = table.concat({
+        "src/a.lua:4:1,1,original note",
+        "```4:6:src/a.lua",
+        "example code",
+        "```",
+      }, "\n")
+      eq(
+        "src/a.lua:4:1,1,original note",
+        Providers.CursorAgentProvider.normalize_qfix_response(text)
+      )
+    end)
+
+    it("normalize_qfix_response deduplicates citation then matching qfix", function()
+      local text = table.concat({
+        "```4:6:src/a.lua",
+        "example code",
+        "```",
+        "src/a.lua:4:1,1,original note",
+        "src/a.lua:4:2,1,distinct column",
+      }, "\n")
+      eq(
+        "src/a.lua:4:1,3,match\nsrc/a.lua:4:2,1,distinct column",
+        Providers.CursorAgentProvider.normalize_qfix_response(text)
+      )
+    end)
+
     it("normalize_qfix_response keeps qfix lines outside code fences", function()
       local line = "C:/project/file.lua:10:1,3,note"
       local text = table.concat({
