@@ -109,6 +109,48 @@ describe("providers", function()
       eq("", Providers.CursorAgentProvider.normalize_qfix_response(text))
     end)
 
+    it("normalize_qfix_response preserves qfix and citation hits in source order", function()
+      local text = table.concat({
+        "src/a.lua:4:1,1,first",
+        "```9:10:src/b.lua",
+        'const x = err("fake.lua:5:3,4,ignore")',
+        "```",
+      }, "\n")
+      eq(
+        "src/a.lua:4:1,1,first\nsrc/b.lua:9:1,2,match",
+        Providers.CursorAgentProvider.normalize_qfix_response(text)
+      )
+    end)
+
+    it("normalize_qfix_response keeps qfix after a citation fence", function()
+      local text = table.concat({
+        "```2:3:src/a.lua",
+        "ignored code",
+        "```",
+        "src/b.lua:7:2,1,second",
+      }, "\n")
+      eq(
+        "src/a.lua:2:1,2,match\nsrc/b.lua:7:2,1,second",
+        Providers.CursorAgentProvider.normalize_qfix_response(text)
+      )
+    end)
+
+    it("normalize_qfix_response retains plain qfix while ignoring code fences", function()
+      local text = table.concat({
+        "src/a.lua:4:1,1,first",
+        "```lua",
+        "src/false.lua:9:1,1,not-a-hit",
+        "```",
+        "```5:8:src/b.lua",
+        "source code",
+        "```",
+      }, "\n")
+      eq(
+        "src/a.lua:4:1,1,first\nsrc/b.lua:5:1,4,match",
+        Providers.CursorAgentProvider.normalize_qfix_response(text)
+      )
+    end)
+
     it("normalize_qfix_response keeps qfix lines outside code fences", function()
       local line = "C:/project/file.lua:10:1,3,note"
       local text = table.concat({
