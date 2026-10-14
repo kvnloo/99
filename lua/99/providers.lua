@@ -341,9 +341,18 @@ function CursorAgentProvider.normalize_qfix_response(text)
       in_fence = not in_fence
     elseif not in_fence then
       local hit = vim.trim(line)
-      if QFixHelpers.parse_line(hit) and not seen[hit] then
-        seen[hit] = true
-        hits[#hits + 1] = hit
+      local parsed = QFixHelpers.parse_line(hit)
+      if parsed then
+        local key = string.format(
+          "%s:%d:%d",
+          vim.trim(parsed.filename),
+          parsed.lnum,
+          parsed.col
+        )
+        if not seen[key] then
+          seen[key] = true
+          hits[#hits + 1] = hit
+        end
       end
     end
   end
