@@ -308,20 +308,6 @@ end
 
 --- @param text string
 --- @return string
-local function cursor_agent_text_outside_fences(text)
-  local out, in_fence = {}, false
-  for line in vim.gsplit(text or "", "\n", true) do
-    if line:match("^```") then
-      in_fence = not in_fence
-    elseif not in_fence then
-      out[#out + 1] = line
-    end
-  end
-  return table.concat(out, "\n")
-end
-
---- @param text string
---- @return string
 function CursorAgentProvider.normalize_qfix_response(text)
   local hits, seen = {}, {}
 
@@ -342,25 +328,23 @@ function CursorAgentProvider.normalize_qfix_response(text)
     )
   end
 
-  text = text or ""
-
-  -- Citation fences first — code lines inside a fence can false-match qfix parsing.
-  for sl, el, path in text:gmatch("```(%d+):(%d+):([^\r\n]+)") do
-    sl = tonumber(sl)
-    el = tonumber(el)
-    if sl and el and path then
+  -- Keep qfix hits and citation hits in source order, ignoring source text
+  -- inside any fenced code block (which may otherwise look like qfix).
+  local in_fence = false
+  for line in vim.gsplit(text or "", "\n", true) do
+    local sl, el, path = line:match("^%s*```(%d+):(%d+):([^\r\n]+)")
+    if sl and not in_fence then
+      sl, el = tonumber(sl), tonumber(el)
       add(path, sl, 1, math.max(1, el - sl + 1), "match")
-    end
-  end
-  if #hits > 0 then
-    return table.concat(hits, "\n")
-  end
-
-  for line in vim.gsplit(cursor_agent_text_outside_fences(text), "\n", true) do
-    line = vim.trim(line)
-    if QFixHelpers.parse_line(line) and not seen[line] then
-      seen[line] = true
-      hits[#hits + 1] = line
+      in_fence = true
+    elseif line:match("^%s*```") then
+      in_fence = not in_fence
+    elseif not in_fence then
+      local hit = vim.trim(line)
+      if QFixHelpers.parse_line(hit) and not seen[hit] then
+        seen[hit] = true
+        hits[#hits + 1] = hit
+      end
     end
   end
   return table.concat(hits, "\n")
