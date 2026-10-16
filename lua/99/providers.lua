@@ -328,18 +328,37 @@ function CursorAgentProvider.normalize_qfix_response(text)
     )
   end
 
-  -- Keep qfix hits and citation hits in source order, ignoring source text
-  -- inside any fenced code block (which may otherwise look like qfix).
-  local in_fence = false
+  -- Preserve source order while skipping fenced code (backticks or tildes).
+  -- Closing fences must match the marker, meet the opening length, and
+  -- contain no info string; a citation is only valid at an opening fence.
+  local fence_marker, fence_length = nil, 0
   for line in vim.gsplit(text or "", "\n", true) do
-    local sl, el, path = line:match("^%s*```(%d+):(%d+):([^\r\n]+)")
-    if sl and not in_fence then
-      sl, el = tonumber(sl), tonumber(el)
-      add(path, sl, 1, math.max(1, el - sl + 1), "match")
-      in_fence = true
-    elseif line:match("^%s*```") then
-      in_fence = not in_fence
-    elseif not in_fence then
+    local indent, markers, suffix = line:match("^( *)([`~]+)(.*)$")
+    local is_fence = indent
+      and #indent <= 3
+      and #markers >= 3
+      and (markers:match("^`+$") or markers:match("^~+$"))
+
+    if fence_marker then
+      if
+        is_fence
+        and markers:sub(1, 1) == fence_marker
+        and #markers >= fence_length
+        and suffix:match("^%s*$")
+      then
+        fence_marker, fence_length = nil, 0
+      end
+    elseif is_fence then
+      local sl, el, path
+      if markers:sub(1, 1) == "`" then
+        sl, el, path = suffix:match("^(%d+):(%d+):(.+)$")
+      end
+      if sl then
+        sl, el = tonumber(sl), tonumber(el)
+        add(path, sl, 1, math.max(1, el - sl + 1), "match")
+      end
+      fence_marker, fence_length = markers:sub(1, 1), #markers
+    else
       local hit = vim.trim(line)
       local parsed = QFixHelpers.parse_line(hit)
       if parsed then

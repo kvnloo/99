@@ -68,4 +68,56 @@ describe("CursorAgent Markdown fence boundaries", function()
       normalize(text)
     )
   end)
+
+  it("does not close a tilde fence with backticks", function()
+    local text = table.concat({
+      "~~~markdown",
+      "```",
+      "src/fake.lua:9:1,1,ignore",
+      "~~~",
+      "src/real.lua:2:1,1,keep",
+    }, "\n")
+    eq("src/real.lua:2:1,1,keep", normalize(text))
+  end)
+
+  it("accepts a longer matching closing fence", function()
+    local text = table.concat({
+      "````lua",
+      "src/fake.lua:9:1,1,ignore",
+      "`````",
+      "src/real.lua:2:1,1,keep",
+    }, "\n")
+    eq("src/real.lua:2:1,1,keep", normalize(text))
+  end)
+
+  it("keeps the first representation of a duplicate citation location", function()
+    local text = table.concat({
+      "src/a.lua:4:1,1,original context",
+      "```4:6:src/a.lua",
+      "src/fake.lua:9:1,1,ignore",
+      "```",
+      "src/a.lua:4:2,1,different column",
+    }, "\n")
+    eq(
+      "src/a.lua:4:1,1,original context\nsrc/a.lua:4:2,1,different column",
+      normalize(text)
+    )
+  end)
+
+  it("ignores code in an unclosed fence", function()
+    local text = table.concat({
+      "src/real.lua:2:1,1,keep",
+      "```typescript",
+      "src/fake.lua:1:1,1,ignore",
+    }, "\n")
+    eq("src/real.lua:2:1,1,keep", normalize(text))
+  end)
+
+  it("does not treat a four-space-indented citation as a fence", function()
+    local text = table.concat({
+      "    ```4:6:src/fake.lua",
+      "src/real.lua:2:1,1,keep",
+    }, "\n")
+    eq("src/real.lua:2:1,1,keep", normalize(text))
+  end)
 end)
