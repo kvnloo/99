@@ -361,12 +361,15 @@ function CursorAgentProvider.normalize_qfix_response(text)
     else
       local hit = vim.trim(line)
       local parsed = QFixHelpers.parse_line(hit)
-      if parsed then
+      -- Numeric suffix guards against prose, and avoids parse_line's
+      -- first-colon split corrupting location keys for drive/colon paths.
+      local path, lnum, col, tail = hit:match("^(.-):(%d+):(%d+),%d+(.*)$")
+      if parsed and path and (tail == "" or tail:sub(1, 1) == ",") then
         local key = string.format(
           "%s:%d:%d",
-          vim.trim(parsed.filename),
-          parsed.lnum,
-          parsed.col
+          vim.trim(path),
+          tonumber(lnum),
+          tonumber(col)
         )
         if not seen[key] then
           seen[key] = true

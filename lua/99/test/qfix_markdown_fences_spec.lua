@@ -120,4 +120,36 @@ describe("CursorAgent Markdown fence boundaries", function()
     }, "\n")
     eq("src/real.lua:2:1,1,keep", normalize(text))
   end)
+
+  it("rejects free-form prose containing nonnumeric quickfix fields", function()
+    local text = table.concat({
+      "Summary: no matches: none,found",
+      "src/bad-line.lua:line:3,1,drop",
+      "src/bad-col.lua:12:col,1,drop",
+      "src/bad-count.lua:12:3,count,drop",
+      "src/bad-suffix.lua:12:3,1broken",
+      "src/valid.lua:12:3,1,keep",
+    }, "\n")
+    eq("src/valid.lua:12:3,1,keep", normalize(text))
+  end)
+
+  it("keeps two Windows paths with different positions", function()
+    local text = "C:/repo/a.lua:10:2,1,first\nC:/repo/b.lua:11:3,1,second"
+    eq(text, normalize(text))
+  end)
+
+  it("deduplicates identical Windows locations by numeric suffix", function()
+    local text = "C:/repo/a.lua:10:2,1,first\nC:/repo/a.lua:10:2,1,duplicate"
+    eq("C:/repo/a.lua:10:2,1,first", normalize(text))
+  end)
+
+  it("keeps separate files with colons in Unix filenames", function()
+    local text = "src/a:one.lua:12:3,1,first\nsrc/a:two.lua:13:3,1,second"
+    eq(text, normalize(text))
+  end)
+
+  it("accepts a numeric quickfix line without description", function()
+    eq("src/valid.lua:12:3,1", normalize("src/valid.lua:12:3,1"))
+  end)
+
 end)
