@@ -188,6 +188,26 @@ describe("providers", function()
       }, "\n")
       eq(line, Providers.CursorAgentProvider.normalize_qfix_response(text))
     end)
+    it("delivers mixed quickfix citations to the downstream parser", function()
+      local text = table.concat({
+        "src/first.lua:12:3,1,plain",
+        "```9:11:src/cited.lua",
+        "src/fake.lua:99:9,1,ignore inside fence",
+        "```",
+        "src/last.lua:21:8,2,last",
+      }, "\n")
+      local normalized =
+        Providers.CursorAgentProvider.normalize_qfix_response(text)
+      local entries = require("99.ops.qfix-helpers").create_qfix_entries(
+        normalized
+      )
+      eq({
+        { filename = "src/first.lua", lnum = 12, col = 3, text = "plain" },
+        { filename = "src/cited.lua", lnum = 9, col = 1, text = "match" },
+        { filename = "src/last.lua", lnum = 21, col = 8, text = "last" },
+      }, entries)
+    end)
+
   end)
 
   describe("GeminiCLIProvider", function()
