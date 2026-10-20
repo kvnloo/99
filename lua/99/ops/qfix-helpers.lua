@@ -2,6 +2,20 @@ local M = {}
 
 --- @return _99.Search.Result | nil
 function M.parse_line(line)
+  -- Prefer the complete numeric location: path text may contain colons
+  -- (Windows drives, custom filenames), as may the diagnostic message.
+  local path, line_no, col_no, notes =
+    line:match("^(.-):(%d+):(%d+),%d+,?(.*)$")
+  if path then
+    return {
+      filename = path,
+      lnum = tonumber(line_no),
+      col = tonumber(col_no),
+      text = notes,
+    }
+  end
+
+  -- Keep the legacy non-numeric fallback for existing callers.
   local filepath, lnum_raw, rest = line:match("^(.-):([^:]+):(.+)$")
   if not filepath or not lnum_raw or not rest then
     return nil
