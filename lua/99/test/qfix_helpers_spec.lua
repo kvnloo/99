@@ -80,4 +80,46 @@ describe("qfix helpers", function()
   it("create_qfix_entries returns empty list for empty response", function()
     eq({}, create_entries(""))
   end)
+
+  it("preserves Windows drive paths through entry conversion", function()
+    local entries = create_entries(table.concat({
+      "C:/repo/file.lua:10:2,1,first",
+      "C:\\repo\\file.lua:12:5,2,second",
+    }, "\n"))
+    eq({
+      { filename = "C:/repo/file.lua", lnum = 10, col = 2, text = "first" },
+      { filename = "C:\\repo\\file.lua", lnum = 12, col = 5, text = "second" },
+    }, entries)
+  end)
+
+  it("preserves colons in filenames and diagnostic notes", function()
+    local entries = create_entries(table.concat({
+      "src/a:one.lua:12:3,1,note:extra",
+      "src/plain.lua:4:8,1,ordinary",
+    }, "\n"))
+    eq({
+      { filename = "src/a:one.lua", lnum = 12, col = 3, text = "note:extra" },
+      { filename = "src/plain.lua", lnum = 4, col = 8, text = "ordinary" },
+    }, entries)
+  end)
+
+  it("preserves numeric-looking location markers inside diagnostics", function()
+    local parsed =
+      QFixHelpers.parse_line("src/errors.lua:8:5,1,value:8:3,2,description")
+    assert(parsed)
+    eq("src/errors.lua", parsed.filename)
+    eq(8, parsed.lnum)
+    eq(5, parsed.col)
+    eq("value:8:3,2,description", parsed.text)
+  end)
+
+  it("rejects nonnumeric locations instead of inventing row 1 col 1", function()
+    eq(nil, QFixHelpers.parse_line("src/raw.lua:bad:also_bad,1,note"))
+    eq(nil, QFixHelpers.parse_line("src/raw.lua:line:3,1,note"))
+    eq(nil, QFixHelpers.parse_line("summary:missing:matches,1,ignore"))
+    local zero = QFixHelpers.parse_line("src/zero.lua:0:0,0,note")
+    assert(zero)
+    eq(0, zero.lnum)
+    eq(0, zero.col)
+  end)
 end)

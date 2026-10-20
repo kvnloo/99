@@ -15,26 +15,7 @@ function M.parse_line(line)
     }
   end
 
-  -- Keep the legacy non-numeric fallback for existing callers.
-  local filepath, lnum_raw, rest = line:match("^(.-):([^:]+):(.+)$")
-  if not filepath or not lnum_raw or not rest then
-    return nil
-  end
-
-  local col_raw, _, notes = rest:match("^([^,]+),([^,]+),?(.*)$")
-  if not col_raw then
-    return nil
-  end
-
-  local lnum = tonumber(lnum_raw) or 1
-  local col = tonumber(col_raw) or 1
-
-  return {
-    filename = filepath,
-    lnum = lnum,
-    col = col,
-    text = notes or "",
-  }
+  return nil
 end
 
 --- @param response string
