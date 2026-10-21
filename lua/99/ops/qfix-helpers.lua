@@ -2,25 +2,22 @@ local M = {}
 
 --- @return _99.Search.Result | nil
 function M.parse_line(line)
-  local filepath, lnum_raw, rest = line:match("^(.-):([^:]+):(.+)$")
-  if not filepath or not lnum_raw or not rest then
-    return nil
+  -- Prefer the complete numeric location: path text may contain colons
+  -- (Windows drives, custom filenames), as may the diagnostic message.
+  local path, line_no, col_no, suffix =
+    line:match("^(.-):(%d+):(%d+),%d+(.*)$")
+  -- The count must terminate the entry or be followed by a comma.
+  -- A malformed count (e.g. `,1broken`) must not become a quickfix hit.
+  if path and path ~= "" and (suffix == "" or suffix:sub(1, 1) == ",") then
+    return {
+      filename = path,
+      lnum = tonumber(line_no),
+      col = tonumber(col_no),
+      text = suffix == "" and "" or suffix:sub(2),
+    }
   end
 
-  local col_raw, _, notes = rest:match("^([^,]+),([^,]+),?(.*)$")
-  if not col_raw then
-    return nil
-  end
-
-  local lnum = tonumber(lnum_raw) or 1
-  local col = tonumber(col_raw) or 1
-
-  return {
-    filename = filepath,
-    lnum = lnum,
-    col = col,
-    text = notes or "",
-  }
+  return nil
 end
 
 --- @param response string

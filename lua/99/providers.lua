@@ -308,20 +308,6 @@ end
 
 --- @param text string
 --- @return string
-local function cursor_agent_text_outside_fences(text)
-  local out, in_fence = {}, false
-  for line in vim.gsplit(text or "", "\n", true) do
-    if line:match("^```") then
-      in_fence = not in_fence
-    elseif not in_fence then
-      out[#out + 1] = line
-    end
-  end
-  return table.concat(out, "\n")
-end
-
---- @param text string
---- @return string
 function CursorAgentProvider.normalize_qfix_response(text)
   local hits, seen = {}, {}
 
@@ -342,25 +328,54 @@ function CursorAgentProvider.normalize_qfix_response(text)
     )
   end
 
-  text = text or ""
+  -- Preserve source order while skipping fenced code (backticks or tildes).
+  -- Closing fences must match the marker, meet the opening length, and
+  -- contain no info string; a citation is only valid at an opening fence.
+  local fence_marker, fence_length = nil, 0
+  for line in vim.gsplit(text or "", "\n", true) do
+    local indent, markers, suffix = line:match("^( *)([`~]+)(.*)$")
+    local is_fence = indent
+      and #indent <= 3
+      and #markers >= 3
+      and (markers:match("^`+$") or markers:match("^~+$"))
 
-  -- Citation fences first — code lines inside a fence can false-match qfix parsing.
-  for sl, el, path in text:gmatch("```(%d+):(%d+):([^\r\n]+)") do
-    sl = tonumber(sl)
-    el = tonumber(el)
-    if sl and el and path then
-      add(path, sl, 1, math.max(1, el - sl + 1), "match")
-    end
-  end
-  if #hits > 0 then
-    return table.concat(hits, "\n")
-  end
-
-  for line in vim.gsplit(cursor_agent_text_outside_fences(text), "\n", true) do
-    line = vim.trim(line)
-    if QFixHelpers.parse_line(line) and not seen[line] then
-      seen[line] = true
-      hits[#hits + 1] = line
+    if fence_marker then
+      if
+        is_fence
+        and markers:sub(1, 1) == fence_marker
+        and #markers >= fence_length
+        and suffix:match("^%s*$")
+      then
+        fence_marker, fence_length = nil, 0
+      end
+    elseif is_fence then
+      local sl, el, path
+      if markers:sub(1, 1) == "`" then
+        sl, el, path = suffix:match("^(%d+):(%d+):(.+)$")
+      end
+      if sl then
+        sl, el = tonumber(sl), tonumber(el)
+        add(path, sl, 1, math.max(1, el - sl + 1), "match")
+      end
+      fence_marker, fence_length = markers:sub(1, 1), #markers
+    else
+      local hit = vim.trim(line)
+      local parsed = QFixHelpers.parse_line(hit)
+      -- Numeric suffix guards against prose, and avoids parse_line's
+      -- first-colon split corrupting location keys for drive/colon paths.
+      local path, lnum, col, tail = hit:match("^(.-):(%d+):(%d+),%d+(.*)$")
+      if parsed and path and (tail == "" or tail:sub(1, 1) == ",") then
+        local key = string.format(
+          "%s:%d:%d",
+          vim.trim(path),
+          tonumber(lnum),
+          tonumber(col)
+        )
+        if not seen[key] then
+          seen[key] = true
+          hits[#hits + 1] = hit
+        end
+      end
     end
   end
   return table.concat(hits, "\n")
